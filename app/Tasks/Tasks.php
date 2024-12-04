@@ -4,6 +4,7 @@ namespace App\Tasks;
 
 use Closure;
 use Exception;
+use Illuminate\Console\OutputStyle;
 use Illuminate\Console\View\Components\Factory;
 
 use function Laravel\Prompts\spin;
@@ -16,28 +17,37 @@ class Tasks
     protected array $tasks = [];
 
     protected Factory $components;
+    protected OutputStyle $output;
 
-    public function call(string $name): void
+    public function call(string $name, ?string $group = null): void
     {
         if (! $this->has($name)) {
             throw new Exception("Task '{$name}' does not exist.");
         }
         $task = $this->tasks[$name];
         if ($task->isClosure()) {
-            $start = microtime(true);
             $label = $task->label($name);
-            $result = spin($task->closure, $label);
+            if ($group) {
+                $primary = "$group";
+                $primary .= '<fg=yellow> ➜ </>';
+                $primary .= "<fg=blue>$label</>";
+            } else {
+                $primary = $label;
+            }
+            $start = microtime(true);
+            $result = spin($task->closure, $primary);
             $took = number_format(microtime(true) - $start, 1);
             $second = "<fg=gray>took {$took}s</>";
             $second .= ' <fg=green;options=bold>DONE</>';
-            $this->components->twoColumnDetail($label, $second);
+            $this->components->twoColumnDetail($primary, $second);
             if ($result instanceof Closure) {
                 $result($this->components);
             }
         } else {
-            foreach ($task->closure as $task) {
-                $this->call($task);
+            foreach ($task->closure as $childTask) {
+                $this->call($childTask, $task->group());
             }
+            $this->output->newLine(2);
         }
     }
 
@@ -46,9 +56,10 @@ class Tasks
         return isset($this->tasks[$name]);
     }
 
-    public function initialize(Factory $components): void
+    public function initialize(Factory $components, OutputStyle $output): void
     {
         $this->components = $components;
+        $this->output = $output;
     }
 
     public function main(Closure|array $closure): Task

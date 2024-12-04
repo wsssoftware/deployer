@@ -57,8 +57,7 @@ class DeployCommand extends Command
 
             return self::FAILURE;
         }
-
-        Tasks::initialize($this->components);
+        Tasks::initialize($this->components, $this->output);
 
         Tasks::call('main');
 
